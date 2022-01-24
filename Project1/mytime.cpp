@@ -19,7 +19,7 @@ void timer(int argc, char ** argv) {
     pid_t pid = fork();
 
     if (pid == 0) {
-        execv(commandArgs[0], commandArgs);
+        execvp(commandArgs[0], commandArgs);
     } else if (pid > 0) {
         // parent
         int status;
