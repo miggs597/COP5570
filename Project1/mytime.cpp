@@ -1,9 +1,10 @@
-#include <chrono>
-#include <vector>
-#include <unistd.h>
 #include <iostream>
+#include <vector>
 #include <algorithm>
+#include <unistd.h>
 #include <sys/wait.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 void timer(int argc, char ** argv) {
 
@@ -24,7 +25,12 @@ void timer(int argc, char ** argv) {
         // parent
         int status;
         waitpid(pid, &status, 0);
-        std::cout << "Return was: " << status << std::endl;
+
+        // Time prints out the command that was timed and it's arguments
+        for (int i = 0; commandArgs[i]; i++) 
+            std::cout << commandArgs[i] << " ";
+
+        std::cout << std::endl;
         
         delete [] commandArgs;
     } else {
