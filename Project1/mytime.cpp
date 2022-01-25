@@ -26,6 +26,12 @@ void timer(int argc, char ** argv) {
         int status;
         waitpid(pid, &status, 0);
 
+        struct rusage ru;
+        getrusage(RUSAGE_CHILDREN, &ru);
+
+        std::cout << ru.ru_utime.tv_sec << std::endl;
+        std::cout << ru.ru_stime.tv_sec << std::endl;
+
         // Time prints out the command that was timed and it's arguments
         for (int i = 0; commandArgs[i]; i++) 
             std::cout << commandArgs[i] << " ";
