@@ -1,6 +1,5 @@
-#include <iostream>
+#include <cstdio>
 #include <vector>
-#include <algorithm>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/time.h>
@@ -14,30 +13,21 @@ void timer(int argc, char ** argv) {
         commandArgs[i - 1] = argv[i];
     }
 
-    // time stuff
-
-    // fork
     pid_t pid = fork();
 
     if (pid == 0) {
         execvp(commandArgs[0], commandArgs);
     } else if (pid > 0) {
-        // parent
         int status;
         waitpid(pid, &status, 0);
 
         struct rusage ru;
         getrusage(RUSAGE_CHILDREN, &ru);
 
-        std::cout << ru.ru_utime.tv_sec << std::endl;
-        std::cout << ru.ru_stime.tv_sec << std::endl;
+        printf("%ld.%du ", ru.ru_utime.tv_sec, ru.ru_utime.tv_usec);
+        printf("%ld.%ds ", ru.ru_stime.tv_sec, ru.ru_stime.tv_usec);
+        printf("\n");
 
-        // Time prints out the command that was timed and it's arguments
-        for (int i = 0; commandArgs[i]; i++) 
-            std::cout << commandArgs[i] << " ";
-
-        std::cout << std::endl;
-        
         delete [] commandArgs;
     } else {
         // could not fork
@@ -49,7 +39,7 @@ void timer(int argc, char ** argv) {
 int main(int argc, char ** argv) {
 
     if (argc < 2) {
-        std::cout << "usage: mytime.x cmd [args]" << std::endl;
+        printf("usage: mytime.x cmd [args]\n");
         exit(EXIT_FAILURE);
     }
 
