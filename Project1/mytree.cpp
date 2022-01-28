@@ -3,6 +3,9 @@
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 namespace fs = std::filesystem;
 
@@ -30,8 +33,9 @@ void walkFileTree(fs::path cwd, int depth) {
                     if (dirEntry.is_symlink()) {
                         std::cout << " -> " << fs::read_symlink(dirEntry.path());
                         std::cout << std::endl;
-                        dirs++;
-                    } else if (dirEntry.is_directory() && !dirEntry.is_symlink()) {
+
+                        dirEntry.is_directory() ? dirs++ : files++;
+                    } else if (dirEntry.is_directory()) {
                         std::cout << std::endl;
                         dirs++;
                         walkFileTree(dirEntry.path(), depth + 1);
@@ -49,14 +53,51 @@ void walkFileTree(fs::path cwd, int depth) {
     }
 }
 
+void walkFileTree(std::string path, int depth) {
+
+    DIR * dir;
+    struct stat statbuf;
+
+    if ((lstat(path.c_str(), &statbuf) < 0)) {
+        printf("lstat error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (S_ISDIR(statbuf.st_mode) == 0) {
+        printf("'%s' is not a directory\n", path.c_str());
+    }
+
+    if ((dir = opendir(path.c_str())) != NULL) {
+
+        struct dirent * entry;
+        std::vector<struct dirent *> dirEntries;
+        while ((entry = readdir(dir)) != NULL) {
+            if (entry->d_name[0] != '.') {
+                dirEntries.push_back(entry);
+            }
+        }
+
+        std::sort(dirEntries.begin(), dirEntries.end(), [](struct dirent * lhs, struct dirent * rhs) { return std::string{lhs->d_name} < std::string{rhs->d_name}; });
+
+        for (auto & i : dirEntries) {
+            printf("%s\n", i->d_name);
+        }
+
+    } else {
+        printf("couldn't open '%s'\n", path.c_str());
+        exit(EXIT_FAILURE);
+    }
+
+}
+
 int main(int argc, char ** argv) {
 
     switch (argc) {
     case 1:
-        walkFileTree(".", 0);
+        walkFileTree(fs::path{"."}, 0);
         break;
     case 2:
-        walkFileTree(argv[1], 0);
+        walkFileTree(std::string{argv[1]}, 0);
         break;
     default:
         printf("usage: mytree.x [dir]\n");

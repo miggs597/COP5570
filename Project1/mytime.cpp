@@ -13,6 +13,10 @@ void timer(int argc, char ** argv) {
         commandArgs[i - 1] = argv[i];
     }
 
+    clock_t start, end;
+    double realTime;
+
+    start = clock();
     pid_t pid = fork();
 
     if (pid == 0) {
@@ -23,9 +27,12 @@ void timer(int argc, char ** argv) {
 
         struct rusage ru;
         getrusage(RUSAGE_CHILDREN, &ru);
+        end = clock();
+        realTime = ((double) (end - start)) / CLOCKS_PER_SEC;
 
-        printf("%ld.%du ", ru.ru_utime.tv_sec, ru.ru_utime.tv_usec);
-        printf("%ld.%ds ", ru.ru_stime.tv_sec, ru.ru_stime.tv_usec);
+        printf("%fr ", realTime); // real
+        printf("%ld.%du ", ru.ru_utime.tv_sec, ru.ru_utime.tv_usec); // user
+        printf("%ld.%ds ", ru.ru_stime.tv_sec, ru.ru_stime.tv_usec); // sys
         printf("\n");
 
         delete [] commandArgs;
