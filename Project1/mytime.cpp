@@ -1,22 +1,28 @@
 #include <cstdio>
-#include <vector>
+#include <cstdlib>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <sys/times.h>
 #include <sys/resource.h>
 
 void timer(int argc, char ** argv) {
 
     char ** commandArgs = new char * [argc - 1];
-    
+
     for (int i = 1; i < argc; i++) {
         commandArgs[i - 1] = argv[i];
     }
 
     clock_t start, end;
     double realTime;
+    double ticks;
 
-    start = clock();
+    if ((start = times(NULL)) == -1) {
+        printf("times error\n");
+        exit(EXIT_FAILURE);
+    }
+
     pid_t pid = fork();
 
     if (pid == 0) {
@@ -24,21 +30,30 @@ void timer(int argc, char ** argv) {
     } else if (pid > 0) {
         int status;
         waitpid(pid, &status, 0);
+        
+        if ((end = times(NULL)) == -1) {
+            printf("times error\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if ((ticks = sysconf(_SC_CLK_TCK)) < 0) {
+            printf("sysconf error\n");
+            exit(EXIT_FAILURE);
+        }
 
         struct rusage ru;
         getrusage(RUSAGE_CHILDREN, &ru);
-        end = clock();
-        realTime = ((double) (end - start)) / CLOCKS_PER_SEC;
+        realTime = (end - start) / ticks;
 
-        printf("%fr ", realTime); // real
-        printf("%ld.%du ", ru.ru_utime.tv_sec, ru.ru_utime.tv_usec); // user
-        printf("%ld.%ds ", ru.ru_stime.tv_sec, ru.ru_stime.tv_usec); // sys
-        printf("\n");
-
+        printf("%-5s %7.3fs\n", "real", realTime);
+        printf("%-5s %7.3fs\n", "user", (float) ru.ru_utime.tv_sec + (float) ru.ru_utime.tv_usec / 1000);
+        printf("%-5s %7.3fs\n", "sys", (float) ru.ru_stime.tv_sec + (float) ru.ru_stime.tv_usec / 1000);
+        
         delete [] commandArgs;
     } else {
         // could not fork
         delete [] commandArgs;
+        printf("fork failed\n");
         exit(EXIT_FAILURE);
     }
 }
