@@ -1,8 +1,14 @@
+CPP = g++
+CPPFLAGS = -std=c++17 -Wall -Werror -pedantic -o
+
 mytree:
-	g++ -std=c++17 -Wall -Werror -pedantic -o mytree.x mytree.cpp
+	$(CPP) $(CPPFLAGS) mytree.x mytree.cpp
 
 mytime:
-	g++ -std=c++17 -Wall -Werror -pedantic -o mytime.x mytime.cpp
+	$(CPP) $(CPPFLAGS) mytime.x mytime.cpp
+
+mymtimes:
+	$(CPP) $(CPPFLAGS) mymtimes.x mymtimes.cpp
 
 clean:
 	rm -v *.x
