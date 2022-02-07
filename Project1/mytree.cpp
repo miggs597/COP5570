@@ -77,13 +77,12 @@ void walkFileTree(std::string path, int depth) {
                 }
 
                 printf("%s", entry->d_name);
+                std::string filler = path[path.length() - 1] == '/' ? "" : "/";
 
-                if ((lstat(std::string{path + "/" + entry->d_name}.c_str(), &statbuf) < 0)) {
+                if ((lstat(std::string{path + filler + entry->d_name}.c_str(), &statbuf) < 0)) {
                     // If I can't get any info about the entry just skip it
                     continue;
                 }
-
-                std::string filler = path[path.length() - 1] == '/' ? "" : "/";
 
                 if (S_ISLNK(statbuf.st_mode) != 0) {
                     printf(" -> %s", realpath(std::string {path + filler + entry->d_name}.c_str(), NULL));
