@@ -12,28 +12,16 @@
 namespace fs = std::filesystem;
 
 std::array<std::string, 1000> history;
+std::string command {};
 
 int main(int argc, char ** argv) {
 
-    struct termios term;
-    tcgetattr(fileno(stdin), &term);
+    command.reserve(100);
+    // struct termios term;
+    // tcgetattr(fileno(stdin), &term);
 
-    term.c_lflag &= ~ECHO;
-    tcsetattr(fileno(stdin), 0, &term);
-
-    std::string command;
-    while (1) {
-        printf("%s $ ", fs::current_path().c_str());
-        std::getline(std::cin, command);
-
-        printf("GOT : %s\n", command.c_str());
-
-
-
-        if (command == "myexit") {
-            break;
-        }
-    }
+    // term.c_lflag &= ~ECHO;
+    // tcsetattr(fileno(stdin), 0, &term);
 
     return 0;
 }
