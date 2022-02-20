@@ -93,10 +93,8 @@ char *** cstringTokens(const std::vector<std::vector<std::string>> & completeTok
 
 pid_t pid;
 
-void runCommand(const std::vector<std::vector<char *>> & tokens, const bool & timeout) {
+void runCommand(const std::vector<std::vector<char *>> & tokens) {
 
-    pid = fork();
-    
     struct sigaction action;
     // using anonymous function for the handler 
     // no captures, takes in an int that isn't used
@@ -105,34 +103,44 @@ void runCommand(const std::vector<std::vector<char *>> & tokens, const bool & ti
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
 
-    int firstCommand = 0;
+    for (const auto & t : tokens) {
+        
+        int firstCommand = 0;
+        bool timeout = false;
 
-    if (timeout) {
-        firstCommand = 2;
-    }
-
-    if (pid == 0) {
-        sigaction(SIGALRM, &action, NULL);
-        char ** command = const_cast<char **>(&tokens[0][firstCommand]);
-        execvp(command[0], command);
-    } else if (pid > 0) {
-
-        int status;
-        if (timeout) {
-            sigaction(SIGALRM, &action, 0);
-            int seconds = atoi(tokens[0][1]);
-            alarm(seconds);
-            waitpid(pid, &status, 0);
+        if (!strcmp(t[0], "mytimeout")) {
+            timeout = true;
+            firstCommand = 2;
         }
 
-        waitpid(pid, &status, 0);
-    } else {
-        printf("fork failed\n");
+        pid = fork();
+
+        if (pid == 0) {
+            sigaction(SIGALRM, &action, NULL);
+            char ** command = const_cast<char **>(&t[firstCommand]);
+            execvp(command[0], command);
+        } else if (pid > 0) {
+
+            int status;
+            if (timeout) {
+                sigaction(SIGALRM, &action, 0);
+                int seconds = atoi(t[1]);
+                alarm(seconds);
+                waitpid(pid, &status, 0);
+            }
+
+            waitpid(pid, &status, 0);
+        } else {
+            printf("fork failed\n");
+        }
     }
 }
 
 int main() {
     
+    auto handelSIGINT = [](int) { printf("\r$ \n"); };
+    signal(SIGINT, handelSIGINT);
+
     while (1) {
         printf("$ ");
         fflush(0);
@@ -164,10 +172,8 @@ int main() {
             // I don't simply break here to ensure that
             // all of my dynamically allocated cstrs are freed
             end = true;
-        } else if (!strcmp(tokens[0][0], "mytimeout")) {
-            runCommand(tokens, true);
         } else {
-            runCommand(tokens, false);
+            runCommand(tokens);
         }
 
         for (unsigned int i = 0; i < tokens.size(); i++) {
