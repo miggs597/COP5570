@@ -35,8 +35,10 @@ std::vector<std::vector<char *>> tokenize(const std::string & command) {
     while (splitCommand >> token) {
         if (token == "<") {
 
-            tokens.push_back(NULL);
-            completeTokens.push_back(tokens);
+            if (tokens.size() > 0) {
+                tokens.push_back(NULL);
+                completeTokens.push_back(tokens);
+            }
 
             splitCommand >> token;
             auto size = token.length() + 1;
@@ -46,8 +48,10 @@ std::vector<std::vector<char *>> tokenize(const std::string & command) {
             tokens.clear();
         } else if (token == ">") {
 
-            tokens.push_back(NULL);
-            completeTokens.push_back(tokens);
+            if (tokens.size() > 0) {
+                tokens.push_back(NULL);
+                completeTokens.push_back(tokens);
+            }
 
             splitCommand >> token;
             auto size = token.length() + 1;
