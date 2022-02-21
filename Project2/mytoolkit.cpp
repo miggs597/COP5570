@@ -16,9 +16,9 @@
 
 namespace fs = std::filesystem;
 
-int redirectionIn = 0;
-int redirectionOut = 0;
-std::vector<std::pair<int, int>> pipePairs {};
+char * in = NULL;
+char * out = NULL;
+bool havePipe = false;
 
 std::vector<std::vector<char *>> tokenize(const std::string & command) {
     // You can use a vector with the exec family
@@ -26,31 +26,41 @@ std::vector<std::vector<char *>> tokenize(const std::string & command) {
     // first item in the vector, this works because
     // the standard guarantees the underlying array will be stored
     // continuously. That is also why I push_back NULL at the end. 
-
     std::vector<std::vector<char *>> completeTokens {};
     std::vector<char *> tokens {};
 
     std::stringstream splitCommand {command};
     std::string token {};
 
-    int currentIndex = 0;
-
     while (splitCommand >> token) {
         if (token == "<") {
-            redirectionIn = ++currentIndex;
+
             tokens.push_back(NULL);
             completeTokens.push_back(tokens);
+
+            splitCommand >> token;
+            auto size = token.length() + 1;
+            in = new char [size];
+            strncpy(in, token.c_str(), size);
+
             tokens.clear();
         } else if (token == ">") {
-            redirectionOut = ++currentIndex;
+
             tokens.push_back(NULL);
             completeTokens.push_back(tokens);
+
+            splitCommand >> token;
+            auto size = token.length() + 1;
+            out = new char [size];
+            strncpy(out, token.c_str(), size);
+
             tokens.clear();
         } else if (token == "|") {
-            pipePairs.push_back({currentIndex, ++currentIndex});
             tokens.push_back(NULL);
             completeTokens.push_back(tokens);
             tokens.clear();
+
+            havePipe = true;
         } else {
             // Need to make a copy because c_str() 
             // points to the same space in memory
@@ -63,32 +73,12 @@ std::vector<std::vector<char *>> tokenize(const std::string & command) {
         }
     }
 
-    tokens.push_back(NULL);
-    completeTokens.push_back(tokens);
-
-    return completeTokens;
-}
-
-char *** cstringTokens(const std::vector<std::vector<std::string>> & completeTokens) {
-    // Will go unused since I am able to access to underlying array of my vector
-    // keeping for reference
-    char *** cTokens = new char ** [completeTokens.size()];
-
-    for (unsigned int i = 0; i < completeTokens.size(); i++) {
-        cTokens[i] = new char * [completeTokens[i].size()];
-
-        for (unsigned int j = 0; j < completeTokens[i].size(); j++) {
-            cTokens[i][j] = const_cast<char *>(completeTokens[i][j].c_str());
-        }
+    if (tokens.size() > 0) {
+        tokens.push_back(NULL);
+        completeTokens.push_back(tokens);
     }
 
-    // for (unsigned int i = 0; i < completeTokens.size(); i++) {
-    //     for (unsigned int j = 0; j < completeTokens[i].size(); j++) {
-    //         printf("%s\n", cTokens[i][j]);
-    //     }
-    // }
-
-    return cTokens;
+    return completeTokens;
 }
 
 pid_t pid;
@@ -103,8 +93,13 @@ void runCommand(const std::vector<std::vector<char *>> & tokens) {
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
 
-    for (const auto & t : tokens) {
+    int fd[2];
+    int fileDes = 0;
+
+    for (unsigned int i = 0; i < tokens.size(); i++) {
         
+        const auto t = tokens[i];
+
         int firstCommand = 0;
         bool timeout = false;
 
@@ -113,23 +108,58 @@ void runCommand(const std::vector<std::vector<char *>> & tokens) {
             firstCommand = 2;
         }
 
+        if (havePipe) {
+            if (pipe(fd) != 0) {
+                printf("Broken pipe\n");
+                return;
+            }
+        }
+
         pid = fork();
 
         if (pid == 0) {
-            sigaction(SIGALRM, &action, NULL);
+            if (havePipe) {
+                dup2(fileDes, STDIN_FILENO);
+                if (i + 1 < tokens.size()) {
+                    dup2(fd[1], STDOUT_FILENO);
+                }
+
+                close(fd[0]);
+            }
+
+            if (in) {
+                int fd = open(in, O_RDONLY, 0);
+                dup2(fd, STDIN_FILENO);
+                close(fd);
+            }
+
+            if (out) {
+                int fd = open(out, O_WRONLY | O_CREAT, 0644);
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            }
+            
             char ** command = const_cast<char **>(&t[firstCommand]);
             execvp(command[0], command);
         } else if (pid > 0) {
-
-            int status;
             if (timeout) {
                 sigaction(SIGALRM, &action, 0);
+                
                 int seconds = atoi(t[1]);
                 alarm(seconds);
-                waitpid(pid, &status, 0);
+                
+                if (havePipe) {
+                    close(fd[1]);
+                    fileDes = fd[0];
+                }
             }
 
-            waitpid(pid, &status, 0);
+            waitpid(pid, NULL, 0);
+
+            if (havePipe) {
+                close(fd[1]);
+                fileDes = fd[0];
+            }
         } else {
             printf("fork failed\n");
         }
@@ -181,6 +211,18 @@ int main() {
                 delete [] tokens[i][j];
             }
         }
+
+        if (in != NULL) {
+            delete [] in;
+            in = NULL;
+        }
+
+        if (out != NULL) {
+            delete [] out;
+            out = NULL;
+        }
+
+        havePipe = false;
 
         if (end) {
             break;
