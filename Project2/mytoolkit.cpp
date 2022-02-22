@@ -149,9 +149,7 @@ void runCommand(const std::vector<std::vector<char *>> & tokens) {
         } else if (pid > 0) {
             if (timeout) {
                 int seconds = atoi(t[1]);
-                if (waitpid(pid, NULL, WNOHANG) != pid) {
-                    alarm(seconds);
-                }
+                alarm(seconds);
             }
 
             waitpid(pid, NULL, 0);
