@@ -96,6 +96,7 @@ void runCommand(const std::vector<std::vector<char *>> & tokens) {
     action.sa_handler = [](int) { kill(pid, SIGTERM); };
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
+    sigaction(SIGALRM, &action, 0);
 
     int fd[2];
     int fileDes = 0;
@@ -147,18 +148,16 @@ void runCommand(const std::vector<std::vector<char *>> & tokens) {
             execvp(command[0], command);
         } else if (pid > 0) {
             if (timeout) {
-                sigaction(SIGALRM, &action, 0);
-                
                 int seconds = atoi(t[1]);
-                alarm(seconds);
-                
-                if (havePipe) {
-                    close(fd[1]);
-                    fileDes = fd[0];
+                if (waitpid(pid, NULL, WNOHANG) != pid) {
+                    alarm(seconds);
                 }
             }
 
             waitpid(pid, NULL, 0);
+
+            // Turn the alarm off if the wait is over
+            alarm(0);
 
             if (havePipe) {
                 close(fd[1]);
