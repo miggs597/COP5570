@@ -213,6 +213,8 @@ int main() {
             }
         }
 
+        havePipe = false;
+
         if (in != NULL) {
             delete [] in;
             in = NULL;
@@ -222,8 +224,6 @@ int main() {
             delete [] out;
             out = NULL;
         }
-
-        havePipe = false;
 
         if (end) {
             break;
