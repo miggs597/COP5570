@@ -62,8 +62,8 @@ int main(int argc, char ** argv) {
     socklen_t socklen;
     struct sockaddr_in serv_addr, cli_addr;
 
-    char hostname[HOST_NAME_MAX];
-    gethostname(hostname, HOST_NAME_MAX);
+    char hostname[64];
+    gethostname(hostname, 64);
 
     if ((socketFD = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("socket error\n");

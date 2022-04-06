@@ -11,12 +11,39 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#define MAXBUF 1024
+
 namespace fs = std::filesystem;
 
 void * readThread(void * arg) {
 
+    int n;
+    int socketFD = *(int *) arg;
+    char buf[MAXBUF] = {0};
 
+    delete (int *) arg;
 
+    pthread_detach(pthread_self());
+
+    while (true) {
+
+        n = read(socketFD, buf, MAXBUF);
+        if (n > 0) {
+            buf[n] = 0;
+            printf("this is echo %s\n", buf);
+        } else {
+            switch (n) {
+            case 0:
+                printf("server closed\n");
+                break;
+            default:
+                printf("Some error");
+                break;
+            }
+
+            close(socketFD);
+        }
+    }
     return NULL;
 }
 
@@ -76,7 +103,9 @@ int main(int argc, char ** argv) {
         exit(EXIT_FAILURE);
     }
 
-    pthread_create(&tid, NULL, &readThread, NULL);
+    int * sockPTR = new int;
+    *sockPTR = socketFD;
+    pthread_create(&tid, NULL, &readThread, (void *) sockPTR);
 
     std::string line;
     while (std::getline(std::cin, line)) {
