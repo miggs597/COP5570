@@ -37,15 +37,57 @@ int main(int argc, char ** argv) {
 
     int delimIndex = config.find(" ");
     std::string servhost = config.substr(0, delimIndex);
-    int servport = atoi(config.substr(delimIndex + 1).c_str());
+    std::string servport = config.substr(delimIndex + 1);
 
-    int socketFD;
+    int socketFD, rv, flag;
+    struct addrinfo hints, *res;
+    pthread_t tid;
 
-    if ((socketFD = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("socket error\n");
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((rv = getaddrinfo(servhost.c_str(), servport.c_str(), &hints, &res)) != 0) {
+        printf("Wrong address info\n");
         exit(EXIT_FAILURE);
     }
 
-    
+    flag = 0;
+
+    do {
+        socketFD = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+        if (socketFD < 0) {
+            continue;
+        }
+
+        if (connect(socketFD, res->ai_addr, res->ai_addrlen) == 0) {
+            flag = 1; 
+            break;
+        }
+
+        close(socketFD);
+
+    } while ((res = res->ai_next) != NULL);
+
+    freeaddrinfo(res);
+
+    if (!flag) {
+        printf("Could not connect\n");
+        exit(EXIT_FAILURE);
+    }
+
+    pthread_create(&tid, NULL, &readThread, NULL);
+
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (line == "exit") {
+            close(socketFD);
+            break;
+        } else {
+            write(socketFD, line.c_str(), line.length());
+        }
+    }
+
+
     return 0;
 }
