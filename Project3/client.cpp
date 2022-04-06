@@ -4,6 +4,7 @@
 
 #include <netdb.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -70,6 +71,7 @@ int main(int argc, char ** argv) {
     struct addrinfo hints, *res;
     pthread_t tid;
 
+    bzero(&hints, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
