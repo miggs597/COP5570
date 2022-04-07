@@ -111,14 +111,8 @@ int main(int argc, char ** argv) {
 
     std::string line;
     while (std::getline(std::cin, line)) {
-        if (line == "exit") {
-            close(socketFD);
-            break;
-        } else {
-            write(socketFD, line.c_str(), line.length());
-        }
+        write(socketFD, line.c_str(), line.length());
     }
-
 
     return 0;
 }

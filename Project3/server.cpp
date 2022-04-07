@@ -2,6 +2,7 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
+#include <string_view>
 #include <unordered_map>
 
 #include <netdb.h>
@@ -18,6 +19,20 @@
 
 namespace fs = std::filesystem;
 
+void handleInput(std::string input, int socketFD) {
+
+
+    if (input.starts_with("exit")) {
+        printf("Got exit request\n");
+    } else if (input.starts_with("login")) {
+        printf("Got login request\n");
+    } else if (input.starts_with("logout")) {
+        printf("logout request\n");
+    } else if (input.starts_with("chat")) {
+        printf("got chat request\n");
+    }
+}
+
 void * handleConnection(void * arg) {
     int socketFD = *((int *) arg);
     delete (int *) arg;
@@ -30,8 +45,7 @@ void * handleConnection(void * arg) {
     while ((n = read(socketFD, buf, 1024)) > 0) {
         buf[n] = '\0';
 
-        printf("SERVER GOT MESSAGE: %s\n", buf);
-        write(socketFD, buf, strlen(buf));
+        handleInput(std::string {buf}, socketFD);
     }
 
     close(socketFD);
