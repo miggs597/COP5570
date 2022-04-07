@@ -69,6 +69,14 @@ void sendMessage(std::string input, int socketFD) {
 
     pthread_mutex_lock(&sendMessageMutex);
 
+    std::string sendersName;
+
+    for (const auto & i : activeUsers) {
+        if (i.second == socketFD) {
+            sendersName = i.first;
+        }
+    }
+
     int delim = input.find(" ");
     std::string recipient = input.substr(delim + 1);
 
@@ -78,7 +86,9 @@ void sendMessage(std::string input, int socketFD) {
         for (const auto & i : activeUsers) {
             // Don't send yourself your the message
             if (i.second != socketFD) {
-                write(i.second, recipient.c_str(), recipient.length());
+                std::string formattedMessage = sendersName + " >> " + recipient;
+
+                write(i.second, formattedMessage.c_str(), formattedMessage.length());
             }
         }
     }
