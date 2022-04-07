@@ -27,24 +27,16 @@ void * readThread(void * arg) {
     pthread_detach(pthread_self());
 
     while (true) {
-
         n = read(socketFD, buf, MAXBUF);
         if (n > 0) {
             buf[n] = 0;
-            printf("this is echo %s\n", buf);
+            printf("%s\n", buf);
         } else {
-            switch (n) {
-            case 0:
-                printf("server closed\n");
-                break;
-            default:
-                printf("Some error");
-                break;
-            }
-
             close(socketFD);
+            exit(EXIT_SUCCESS);
         }
     }
+    
     return NULL;
 }
 

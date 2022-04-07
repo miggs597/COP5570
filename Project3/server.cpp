@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <netdb.h>
 #include <stdio.h>
@@ -19,17 +20,85 @@
 
 namespace fs = std::filesystem;
 
+pthread_mutex_t loginMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t sendMessageMutex = PTHREAD_MUTEX_INITIALIZER;
+
+// The set just prevents multiple logins from a
+// client that is currently logged in
+std::unordered_set<int> activeSockets;
+std::unordered_map<std::string, int> activeUsers;
+
+void login(std::string info, int socketFD) {
+
+    pthread_mutex_lock(&loginMutex);
+
+    if (!activeSockets.contains(socketFD)) {
+        int usernameDelim = info.find(" ");
+        std::string username = info.substr(usernameDelim + 1);
+        activeUsers.try_emplace(username, socketFD);
+
+        activeSockets.emplace(socketFD);
+    }
+
+    pthread_mutex_unlock(&loginMutex);
+}
+
+void logout(int socketFD) {
+
+    pthread_mutex_lock(&loginMutex);
+
+    if (activeSockets.contains(socketFD)) {
+        std::string userToLogout;
+
+        // Don't have a bimap
+        // really just hoping my values are unique :)
+        for (const auto & i : activeUsers) {
+            if (i.second == socketFD) {
+                userToLogout = i.first;
+            }
+        }
+
+        activeUsers.erase(userToLogout);
+        activeSockets.erase(socketFD);
+    }
+
+    pthread_mutex_unlock(&loginMutex);
+}
+
+void sendMessage(std::string input, int socketFD) {
+
+    pthread_mutex_lock(&sendMessageMutex);
+
+    int delim = input.find(" ");
+    std::string recipient = input.substr(delim + 1);
+
+    if (recipient.starts_with("@")) {
+
+    } else {
+        for (const auto & i : activeUsers) {
+            // Don't send yourself your the message
+            if (i.second != socketFD) {
+                write(i.second, recipient.c_str(), recipient.length());
+            }
+        }
+    }
+
+    pthread_mutex_unlock(&sendMessageMutex);
+}
+
 void handleInput(std::string input, int socketFD) {
-
-
     if (input.starts_with("exit")) {
-        printf("Got exit request\n");
+        close(socketFD);
     } else if (input.starts_with("login")) {
-        printf("Got login request\n");
+        login(input, socketFD);
     } else if (input.starts_with("logout")) {
-        printf("logout request\n");
+        logout(socketFD);
     } else if (input.starts_with("chat")) {
-        printf("got chat request\n");
+        sendMessage(input, socketFD);
+    } else if (input.starts_with("print")) {
+        for (const auto & i : activeUsers) {
+            printf("user: %s, socket: %d\n", i.first.c_str(), i.second);
+        }
     }
 }
 
@@ -44,7 +113,6 @@ void * handleConnection(void * arg) {
 
     while ((n = read(socketFD, buf, 1024)) > 0) {
         buf[n] = '\0';
-
         handleInput(std::string {buf}, socketFD);
     }
 
