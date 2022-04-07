@@ -29,6 +29,8 @@ std::unordered_set<int> activeSockets;
 std::unordered_map<std::string, int> activeUsers;
 
 void login(std::string info, int socketFD) {
+    // Using a lock here should prevent two clients
+    // from logging in with the same name
 
     pthread_mutex_lock(&loginMutex);
 
@@ -45,8 +47,6 @@ void login(std::string info, int socketFD) {
 
 void logout(int socketFD) {
 
-    pthread_mutex_lock(&loginMutex);
-
     if (activeSockets.contains(socketFD)) {
         std::string userToLogout;
 
@@ -61,12 +61,19 @@ void logout(int socketFD) {
         activeUsers.erase(userToLogout);
         activeSockets.erase(socketFD);
     }
+}
 
-    pthread_mutex_unlock(&loginMutex);
+void * sendMessageInParallel(void * message) {
+    std::pair<std::string, int> m = *(std::pair<std::string, int> *) message;
+    delete (std::pair<std::string, int> *) message;
+
+    write(m.second, m.first.c_str(), m.first.length()); 
+    return NULL;
 }
 
 void sendMessage(std::string input, int socketFD) {
 
+    // Should this be locked?
     pthread_mutex_lock(&sendMessageMutex);
 
     std::string sendersName;
@@ -78,33 +85,61 @@ void sendMessage(std::string input, int socketFD) {
     }
 
     int delim = input.find(" ");
-    std::string recipient = input.substr(delim + 1);
+    std::string rawMessage = input.substr(delim + 1);
 
-    if (recipient.starts_with("@")) {
+    if (rawMessage.starts_with("@")) {
+        delim = rawMessage.find(" ");
+        std::string targetUserName = rawMessage.substr(1, delim - 1);
 
+        if (activeUsers.contains(targetUserName)) {
+            int targetUserSocketFD = activeUsers.at(targetUserName);
+
+            rawMessage = rawMessage.substr(delim + 1);
+            rawMessage = sendersName + " >> " + rawMessage;
+            
+            write(targetUserSocketFD, rawMessage.c_str(), rawMessage.length());
+        }
     } else {
-        for (const auto & i : activeUsers) {
-            // Don't send yourself your the message
-            if (i.second != socketFD) {
-                std::string formattedMessage = sendersName + " >> " + recipient;
+        // Create a new array of pthreads that will be used to send
+        // the message to the whole server
+        int threadIndex = 0;
+        pthread_t * t = new pthread_t[activeUsers.size() - 1];
 
-                write(i.second, formattedMessage.c_str(), formattedMessage.length());
+        for (const auto & user : activeUsers) {
+            // Don't send yourself your the message
+            if (user.second != socketFD) {
+                std::string formattedMessage = sendersName + " >> " + rawMessage;
+
+                std::pair<std::string, int> * message = new std::pair<std::string, int>;
+                message->first = formattedMessage;
+                message->second = user.second;
+
+                pthread_create(&t[threadIndex++], NULL, &sendMessageInParallel, (void *)message); 
             }
         }
+
+        for (unsigned int i = 0; i < activeUsers.size() - 1; i++) {
+            pthread_join(t[i], NULL);
+        }
+
+        delete [] t;
     }
 
     pthread_mutex_unlock(&sendMessageMutex);
 }
 
 void handleInput(std::string input, int socketFD) {
-    if (input.starts_with("exit")) {
-        close(socketFD);
-    } else if (input.starts_with("login")) {
+    if (input.starts_with("login")) {
         login(input, socketFD);
     } else if (input.starts_with("logout")) {
         logout(socketFD);
     } else if (input.starts_with("chat")) {
-        sendMessage(input, socketFD);
+        if (activeSockets.contains(socketFD)) {
+            sendMessage(input, socketFD);
+        } else {
+            std::string notLoggedIn = "login in to use chat";
+            write(socketFD, notLoggedIn.c_str(), notLoggedIn.length()); 
+        }
     } else if (input.starts_with("print")) {
         for (const auto & i : activeUsers) {
             printf("user: %s, socket: %d\n", i.first.c_str(), i.second);
@@ -185,7 +220,6 @@ int main(int argc, char ** argv) {
     }
 
     while (1) {
-
         pthread_t clientThread;
 
         socklen = sizeof(cli_addr);

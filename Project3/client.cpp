@@ -103,6 +103,15 @@ int main(int argc, char ** argv) {
 
     std::string line;
     while (std::getline(std::cin, line)) {
+        if (line == "exit") {
+            std::string e = "logout";
+            
+            write(socketFD, e.c_str(), e.length());
+            close(socketFD);
+
+            exit(EXIT_SUCCESS);
+        }
+
         write(socketFD, line.c_str(), line.length());
     }
 
