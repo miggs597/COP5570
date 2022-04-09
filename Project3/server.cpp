@@ -2,7 +2,6 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
-#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -12,6 +11,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -31,7 +31,6 @@ std::unordered_map<std::string, int> activeUsers;
 void login(std::string info, int socketFD) {
     // Using a lock here should prevent two clients
     // from logging in with the same name
-
     pthread_mutex_lock(&loginMutex);
 
     if (!activeSockets.contains(socketFD)) {
@@ -46,7 +45,6 @@ void login(std::string info, int socketFD) {
 }
 
 void logout(int socketFD) {
-
     if (activeSockets.contains(socketFD)) {
         std::string userToLogout;
 
@@ -72,7 +70,6 @@ void * sendMessageInParallel(void * message) {
 }
 
 void sendMessage(std::string input, int socketFD) {
-
     // Should this be locked?
     pthread_mutex_lock(&sendMessageMutex);
 
@@ -167,6 +164,17 @@ void * handleConnection(void * arg) {
 
 int main(int argc, char ** argv) {
 
+    auto handelSIGINT = [](int) { 
+
+        for (auto & user : activeUsers) {
+            close(user.second);
+        }
+
+        exit(EXIT_SUCCESS);
+    };
+
+    signal(SIGINT, handelSIGINT);
+
     if (argc != 2) {
         printf("usage: server.x configration_file\n");
         exit(EXIT_FAILURE);
@@ -189,8 +197,10 @@ int main(int argc, char ** argv) {
     socklen_t socklen;
     struct sockaddr_in serv_addr, cli_addr;
 
+    struct hostent * hostEntry;
     char hostname[64];
     gethostname(hostname, 64);
+    hostEntry = gethostbyname(hostname);
 
     if ((socketFD = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("socket error\n");
@@ -212,7 +222,7 @@ int main(int argc, char ** argv) {
 		exit(EXIT_FAILURE);
 	}
     
-    printf("ip: %s@%s, port: %d\n", hostname, inet_ntoa(serv_addr.sin_addr), htons(serv_addr.sin_port));
+    printf("ip: %s@%s, port: %d\n", hostname, inet_ntoa(*(struct in_addr *)hostEntry->h_addr_list[0]), htons(serv_addr.sin_port));
 
     if (listen(socketFD, 5) < 0) {
         printf("listen error\n");

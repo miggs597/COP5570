@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
@@ -40,7 +41,21 @@ void * readThread(void * arg) {
     return NULL;
 }
 
+int sockFD;
+
+void closeBoth(int socketFD) {
+    std::string e = "logout";
+            
+    write(socketFD, e.c_str(), e.length());
+    close(socketFD);
+
+    exit(EXIT_SUCCESS);
+}
+
 int main(int argc, char ** argv) {
+    
+    auto handelSIGINT = [](int) { closeBoth(sockFD); };
+    signal(SIGINT, handelSIGINT);
 
     if (argc != 2) {
         printf("usage: 'client.x config'\n");
@@ -82,6 +97,7 @@ int main(int argc, char ** argv) {
         }
 
         if (connect(socketFD, res->ai_addr, res->ai_addrlen) == 0) {
+            sockFD = socketFD;
             flag = 1; 
             break;
         }
@@ -104,12 +120,7 @@ int main(int argc, char ** argv) {
     std::string line;
     while (std::getline(std::cin, line)) {
         if (line == "exit") {
-            std::string e = "logout";
-            
-            write(socketFD, e.c_str(), e.length());
-            close(socketFD);
-
-            exit(EXIT_SUCCESS);
+            closeBoth(socketFD);
         }
 
         write(socketFD, line.c_str(), line.length());
