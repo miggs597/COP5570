@@ -21,7 +21,6 @@
 namespace fs = std::filesystem;
 
 pthread_mutex_t loginMutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t sendMessageMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // The set just prevents multiple logins from a
 // client that is currently logged in
@@ -70,9 +69,6 @@ void * sendMessageInParallel(void * message) {
 }
 
 void sendMessage(std::string input, int socketFD) {
-    // Should this be locked?
-    pthread_mutex_lock(&sendMessageMutex);
-
     std::string sendersName;
 
     for (const auto & i : activeUsers) {
@@ -121,8 +117,6 @@ void sendMessage(std::string input, int socketFD) {
 
         delete [] t;
     }
-
-    pthread_mutex_unlock(&sendMessageMutex);
 }
 
 void handleInput(std::string input, int socketFD) {
