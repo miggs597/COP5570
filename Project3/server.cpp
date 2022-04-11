@@ -12,11 +12,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sys/types.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
-#include <netinet/in.h>
 
 namespace fs = std::filesystem;
 
@@ -25,7 +27,7 @@ pthread_mutex_t loginMutex = PTHREAD_MUTEX_INITIALIZER;
 // The set just prevents multiple logins from a
 // client that is currently logged in
 std::unordered_set<int> activeSockets;
-std::unordered_map<std::string, int> activeUsers;
+std::unordered_map<std::string, std::pair<int, pthread_mutex_t>> activeUsers;
 
 void login(std::string info, int socketFD) {
     // Using a lock here should prevent two clients
@@ -34,8 +36,11 @@ void login(std::string info, int socketFD) {
 
     if (!activeSockets.contains(socketFD)) {
         int usernameDelim = info.find(" ");
+        
         std::string username = info.substr(usernameDelim + 1);
-        activeUsers.try_emplace(username, socketFD);
+        pthread_mutex_t t = PTHREAD_MUTEX_INITIALIZER;
+
+        activeUsers.try_emplace(username, std::make_pair(socketFD, t));
 
         activeSockets.emplace(socketFD);
     }
@@ -50,7 +55,7 @@ void logout(int socketFD) {
         // Don't have a bimap
         // really just hoping my values are unique :)
         for (const auto & i : activeUsers) {
-            if (i.second == socketFD) {
+            if (i.second.first == socketFD) {
                 userToLogout = i.first;
             }
         }
@@ -61,10 +66,13 @@ void logout(int socketFD) {
 }
 
 void * sendMessageInParallel(void * message) {
-    std::pair<std::string, int> m = *(std::pair<std::string, int> *) message;
-    delete (std::pair<std::string, int> *) message;
+    auto m = *(std::pair<std::string, std::pair<int, pthread_mutex_t>> *) message;
+    delete (std::pair<std::string, std::pair<int, pthread_mutex_t>> *) message;
 
-    write(m.second, m.first.c_str(), m.first.length()); 
+    pthread_mutex_lock(&m.second.second);
+    write(m.second.first, m.first.c_str(), m.first.length());
+    pthread_mutex_unlock(&m.second.second);
+
     return NULL;
 }
 
@@ -72,7 +80,7 @@ void sendMessage(std::string input, int socketFD) {
     std::string sendersName;
 
     for (const auto & i : activeUsers) {
-        if (i.second == socketFD) {
+        if (i.second.first == socketFD) {
             sendersName = i.first;
         }
     }
@@ -85,12 +93,14 @@ void sendMessage(std::string input, int socketFD) {
         std::string targetUserName = rawMessage.substr(1, delim - 1);
 
         if (activeUsers.contains(targetUserName)) {
-            int targetUserSocketFD = activeUsers.at(targetUserName);
+            auto targetUserSocketFD = activeUsers.at(targetUserName);
 
             rawMessage = rawMessage.substr(delim + 1);
             rawMessage = sendersName + " >> " + rawMessage;
             
-            write(targetUserSocketFD, rawMessage.c_str(), rawMessage.length());
+            pthread_mutex_lock(&targetUserSocketFD.second);
+            write(targetUserSocketFD.first, rawMessage.c_str(), rawMessage.length());
+            pthread_mutex_unlock(&targetUserSocketFD.second);
         }
     } else {
         // Create a new array of pthreads that will be used to send
@@ -100,10 +110,10 @@ void sendMessage(std::string input, int socketFD) {
 
         for (const auto & user : activeUsers) {
             // Don't send yourself your the message
-            if (user.second != socketFD) {
+            if (user.second.first != socketFD) {
                 std::string formattedMessage = sendersName + " >> " + rawMessage;
 
-                std::pair<std::string, int> * message = new std::pair<std::string, int>;
+                auto * message = new std::pair<std::string, std::pair<int, pthread_mutex_t>>;
                 message->first = formattedMessage;
                 message->second = user.second;
 
@@ -133,7 +143,7 @@ void handleInput(std::string input, int socketFD) {
         }
     } else if (input.starts_with("print")) {
         for (const auto & i : activeUsers) {
-            printf("user: %s, socket: %d\n", i.first.c_str(), i.second);
+            printf("user: %s, socket: %d\n", i.first.c_str(), i.second.first);
         }
     }
 }
@@ -161,7 +171,7 @@ int main(int argc, char ** argv) {
     auto handelSIGINT = [](int) { 
 
         for (auto & user : activeUsers) {
-            close(user.second);
+            close(user.second.first);
         }
 
         exit(EXIT_SUCCESS);
