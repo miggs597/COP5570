@@ -28,8 +28,7 @@ void timer(int argc, char ** argv) {
     if (pid == 0) {
         execvp(commandArgs[0], commandArgs);
     } else if (pid > 0) {
-        int status;
-        waitpid(pid, &status, 0);
+        wait(NULL);
         
         if ((end = times(NULL)) == -1) {
             printf("times error\n");
