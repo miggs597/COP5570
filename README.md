@@ -4,7 +4,7 @@
 On linprog please run:
 
 ```tsch
-scl enable devtoolset-9 bash
+scl enable devtoolset-11 bash
 ```
 
 as I am compiling with -std=c++20
